@@ -1,0 +1,133 @@
+import React, { useState } from 'react';
+import {
+  EuiPage,
+  EuiText,
+  EuiTitle,
+  EuiButton,
+  EuiFlyout,
+  EuiSpacer,
+  EuiPageBody,
+  EuiPageContent,
+  EuiFlyoutHeader,
+  EuiFlyoutFooter,
+  EuiFlexItem,
+  EuiFlexGroup,
+} from '@elastic/eui';
+import { ActionsList, CreateTab, UpdateTab } from './tabs';
+import { getHelpTitle, getHelpBody } from './tabs/plugin_help';
+import ConfigureLegacyModal from './configure_tab';
+import axios from 'axios';
+import { toastNotifications } from 'ui/notify';
+
+const successHandler = response => {
+  const { data } = response;
+  if (
+    typeof data === 'string' &&
+    (data === 'Session invalid' || data.startsWith('<html><head><title>Login Page</title>'))
+  ) {
+    toastNotifications.addDanger(`Session expired. Redirecting to login page.`);
+    setTimeout(() => window.location.reload(), 2000);
+  } else {
+    return response;
+  }
+};
+
+axios.interceptors.response.use(response => successHandler(response));
+
+export function Main(props) {
+  const [createAction, setCreateAction] = useState(false);
+  const [updateAction, setUpdateAction] = useState(null);
+  const [infoIsVisible, setInfoIsVisible] = useState(false);
+  const [actionTypeForHelp, setActionTypeForHelp] = useState('');
+  const [configureModalVisable, setConfigureModalVisable] = useState(false);
+
+  const helpTitle = getHelpTitle(createAction, updateAction);
+  const helpBody = getHelpBody(createAction || updateAction || undefined);
+
+  const paddingValue = !createAction && !updateAction ? '30vw' : '45vw';
+
+  const onClose = () => {
+    setConfigureModalVisable(false);
+  };
+
+  const pluginInfo = (
+    <EuiFlyout
+      style={{ width: paddingValue, boxShadow: 'unset' }}
+      onClose={() => setInfoIsVisible(v => !v)}
+    >
+      <EuiFlyoutHeader>
+        <EuiTitle style={{ textAlign: 'center' }}>
+          <h1>{helpTitle}</h1>
+        </EuiTitle>
+      </EuiFlyoutHeader>
+      {helpBody}
+      <EuiFlyoutFooter>
+        <EuiText textAlign="center">Logged in as: {props.userDetail.username}</EuiText>
+      </EuiFlyoutFooter>
+    </EuiFlyout>
+  );
+
+  return (
+    <>
+      <EuiPage>
+        <EuiPageBody style={infoIsVisible ? { paddingRight: paddingValue } : {}}>
+          {props.userDetail && props.userDetail.isAuthorized && (
+            <>
+              <EuiFlexGroup justifyContent="spaceBetween">
+                <EuiFlexItem grow={false}>
+                  <EuiButton
+                    style={{ width: 130, height: 35 }}
+                    onClick={() => setInfoIsVisible(v => !v)}
+                    iconType="help"
+                    iconSide="right"
+                  >
+                    Help
+                  </EuiButton>
+                </EuiFlexItem>
+                <EuiFlexItem grow={false}>
+                  <EuiButton
+                    style={{ width: 130, height: 35 }}
+                    onClick={() => setConfigureModalVisable(true)}
+                    // eslint-disable-next-line prettier/prettier
+                   > Configure
+                  </EuiButton>
+                  <EuiSpacer size="m" />
+                </EuiFlexItem>
+              </EuiFlexGroup>
+            </>
+          )}
+          <EuiPageContent>
+            {props.userDetail && props.userDetail.isAuthorized ? (
+              <>
+                {createAction === false && updateAction === null && (
+                  <ActionsList
+                    setCreateAction={setCreateAction}
+                    setUpdateAction={setUpdateAction}
+                  />
+                )}
+                {createAction !== false && (
+                  <CreateTab
+                    setCreateAction={setCreateAction}
+                    actionType={actionTypeForHelp}
+                    setActionType={setActionTypeForHelp}
+                  />
+                )}
+                {updateAction !== null && (
+                  <UpdateTab setUpdateAction={setUpdateAction} item={updateAction} />
+                )}
+              </>
+            ) : (
+              <EuiText>
+                <p>This page is accessible for administrator users only.</p>
+              </EuiText>
+            )}
+          </EuiPageContent>
+        </EuiPageBody>
+      </EuiPage>
+      {configureModalVisable && (
+        <ConfigureLegacyModal value={configureModalVisable} onClose={onClose} />
+      )}
+      {infoIsVisible && pluginInfo}
+    </>
+  );
+}
